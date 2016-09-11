@@ -11,6 +11,6 @@ Alejandro Brukman
 Kieran O'Neill - [@oneillkza](https://github.com/oneillkza)  
 Gagandeep Singh   
 Preeti Singh - [@preetisi](https://github.com/preetisi)  
-Shreejoy Tripathy - [@stripat3](https://github.com/stripat3)  
+Shreejoy Tripathy - [@stripathy](https://github.com/stripathy)  
 Raouf Dridi  
 Manuel Belmadani - [@mbelmadani](https://github.com/mbelmadani)  
