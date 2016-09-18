@@ -6,7 +6,7 @@ Tasks: https://github.com/hackseq/2016_project_5/issues
 
 Team members:  
 Fotis Tsetsos - [@ftsetsos](https://github.com/ftsetsos)  
-Zeki Ekmekci  - [@ZackyE8](https://github.com/ZackyE8)
+Zeki Ekmekci  - [@ZackyE8](https://github.com/ZackyE8)  
 Alejandro Brukman  
 Kieran O'Neill - [@oneillkza](https://github.com/oneillkza)  
 Gagandeep Singh   
