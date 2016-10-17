@@ -1,0 +1,175 @@
+---
+title: "Analysis of Predicted TF Binding Sites in DMRs in HSCs in Aged vs Young Mice"
+author: "Kieran O'Neill and Shreejoy Tripathy"
+date: "19/07/2016"
+output:
+  html_document:
+    keep_md: yes
+toc: yes
+fontsize: 10pt
+---
+
+```{r setup, include=FALSE, results='hide'}
+knitr::opts_chunk$set(fig.width=12, fig.height=12, fig.path='plots/',
+					  echo=FALSE,
+					  warning=FALSE,
+					  message=FALSE,
+					  results='show',
+					  show.fig=TRUE,
+					  cache=TRUE)
+
+#Load libraries:
+library(ggplot2)
+library(ChIPseeker)
+library(rtracklayer)
+library(org.Mm.eg.db)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+
+
+```
+
+# Introduction
+
+Sun et al showed in [this paper](http://www.cell.com/cell-stem-cell/abstract/S1934-5909(14)00096-4) that hematopoeitic stem cells isolated from older (2 years) BL6 mice showed distinct methylation patterns from the same cell type isolated from young (3 month) mice. We characterised the predicted transcription factor binding sites within the differentially methylated regions from that study.
+
+# Methods
+
+## Data and FIMO
+
+We took differentially methylated regions from the supplementary material from that paper. We split the DMRs into hypo- and hyper-methylated sets, then ran FIMO across each to predict which binding sites appeared. 
+
+## Analysis
+
+We filtered out calls with Q-value below 0.05.
+
+```{r load_meth}
+# load in ChIP-Seq datasets for histone modifications - needs to be annotated to hg19
+# gets loaded in as genome ranges object
+
+# load in file from fimo of up DMR regions
+fimo_up =  read.delim("results/fimo_upmeth/fimo.txt")
+fimo_down <- read.delim("results/fimo_downmeth/fimo.txt")
+jaspar_names = read.delim("results/JASPAR_NAMES", sep = " ", header = F)
+colnames(jaspar_names) = c("X.pattern.name", "TF_name")
+
+
+```
+
+# Results
+
+```{r load_rna_seq}
+min_fpkm <- 5
+hsc_rna_seq <- read.csv('data/GSE47817_deg.m04_hsc_vs_m24_hsc.txt',sep = '\t')
+hsc_rna_seq_present <- hsc_rna_seq[which(hsc_rna_seq$m24_hsc.mean.fpkm > min_fpkm |
+                                          hsc_rna_seq$m04_hsc.mean.fpkm > min_fpkm), ]
+
+```
+
+## TFs Predicted within DMRs and Expressed in Cells 
+```{r upmeth}
+filterFimoResult <- function(fimo_table, min_fpkm=1, min_qval=0.05)
+{
+# merge fimo and file for jaspar names
+
+  fimo_table = merge(fimo_table, jaspar_names, by = "X.pattern.name")
+  fimo_table_signif <- fimo_table[which(fimo_table$q.value < 0.05),]
+  
+  # Filter down to those TFs actually expressed:
+  fimo_table_present <- fimo_table_signif[which(tolower(fimo_table_signif$TF_name) %in% tolower(hsc_rna_seq_present$geneSymbol)),]
+  fimo_table_present$TF_name <- droplevels(fimo_table_present$TF_name)
+  return(fimo_table_present)  
+}
+
+fimo_up_present <- filterFimoResult(fimo_up)
+fimo_down_present <- filterFimoResult(fimo_down)
+
+# 
+# sort(table(fimo_up_present$TF_name))
+# # filter just runx1 TF
+#   runx1_up = fimo_up %>% filter(TF_name == 'RUNX1')
+#   
+
+ggplot(fimo_up_present) + aes(x=TF_name) +
+  geom_bar() +
+  ggtitle('TFs With Binding Sites Hypermethylated (downregulated) in Aged HSCs')
+
+ggplot(fimo_down_present) + aes(x=TF_name) +
+  geom_bar() +
+  ggtitle('TFs With Binding Sites Hypomethylated (upregulated) in Aged HSCs')
+
+
+```
+
+## TFs Unique to Hyper/Hypo
+
+TFs present in hypermethylated regions in the old mice but not in hypomethylated included `r paste(setdiff(fimo_up_present$TF_name, fimo_down_present$TF_name), collapse=', ')`
+
+
+TFs present in hypomethylated regions in the old mice but not in hypermethylated included `r paste(setdiff(fimo_down_present$TF_name, fimo_up_present$TF_name), collapse=', ')`
+
+
+## Gene Annotation
+
+```{r gene_anno}
+
+fimo_up_unique <- fimo_up_present[which(fimo_up_present$TF_name %in% setdiff(fimo_up_present$TF_name, fimo_down_present$TF_name)),]
+
+fimo_down_unique <- fimo_down_present[which(fimo_down_present$TF_name %in% setdiff(fimo_down_present$TF_name, fimo_up_present$TF_name)),]
+
+
+fimoToGrange <- function(fimo_table)
+{
+  chr_start_stop <- as.data.frame(do.call(rbind, strsplit( as.character(fimo_table$sequence.name), ':|-')))
+  colnames(chr_start_stop) <- c('chr', 'start', 'stop')
+  chr_start_stop$start <- as.numeric(chr_start_stop$start)
+  chr_start_stop$stop <- as.numeric(chr_start_stop$stop)
+  fimo_table_prepped <- fimo_table
+  fimo_table_prepped$start <- chr_start_stop$start
+  fimo_table_prepped$stop <- chr_start_stop$stop
+  fimo_table_prepped$chr <- chr_start_stop$chr
+  makeGRangesFromDataFrame(fimo_table_prepped, keep.extra.columns = TRUE)
+}
+
+fimo_up_unique_gr <- fimoToGrange(fimo_up_unique)
+fimo_down_unique_gr <- fimoToGrange(fimo_down_unique)
+
+
+annotateFimo <- function(fimo_table_gr)
+{
+  fimo_table_anno <- annotatePeak(fimo_table_gr, TxDb = TxDb.Mmusculus.UCSC.mm10.knownGene,
+                                    tssRegion=c(-500,3000) ,
+                                  level='gene')@anno
+  
+  gene.names <- AnnotationDbi::select(org.Mm.eg.db, 
+						 keys=elementMetadata(fimo_table_anno)$geneId, 
+						 columns=c("SYMBOL","GENENAME"), 
+						 keytype="ENTREZID")
+  
+  elementMetadata(fimo_table_anno) <- cbind(elementMetadata(fimo_table_anno),
+										gene.names[,c(2,3)])
+  fimo_table_anno
+}
+
+fimo_up_anno <- annotateFimo(fimo_up_unique_gr)
+fimo_down_anno <- annotateFimo(fimo_down_unique_gr)
+
+ggplot(as.data.frame(fimo_up_anno@elementMetadata)) + aes(x=SYMBOL) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle('Genes Predicted Downregulated in Aged Mice')
+
+ggplot(as.data.frame(fimo_down_anno@elementMetadata)) + aes(x=SYMBOL) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle('Genes Predicted Downregulated in Young Mice')
+
+
+```
+
+
+
+#Session Info
+
+```{r session, results='show'}
+sessionInfo()
+```
