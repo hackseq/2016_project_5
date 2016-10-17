@@ -1,4 +1,11 @@
 # 2016_project_5
+
+The content of this repository represent the experimental work that has been carried out during the 2016 Hackseq hackathon.
+
+You are free to use the code and material provided here, but do so at your own risk and with no warranty.
+
+## Original README
+
 A framework to evaluate profiles from DNA-binding site collections represented in peak sequences from ChIP-Seq assays
 
 Wiki: https://github.com/hackseq/2016_project_5/wiki  
